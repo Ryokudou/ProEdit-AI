@@ -1,0 +1,5 @@
+{
+  "name": "ProEdit AI - Smart Image Editor",
+  "description": "A professional-grade AI image editing tool powered by Gemini 3 Pro. Modify images with text prompts, resize to standard formats (A4, Postcard, etc.), and upscale up to 4K resolution.",
+  "requestFramePermissions": []
+}
