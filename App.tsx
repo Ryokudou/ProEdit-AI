@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { AspectRatio, ImageResolution, Language, Orientation, StyleGroup } from './types';
-import { editImageWithGemini, getStoredApiKey, saveApiKey, removeApiKey, selectApiKey } from './services/geminiService';
+import { AspectRatio, ImageResolution, Language, Orientation, StyleGroup, PreservationMode, GeminiModel } from './types';
+import { editImageWithGemini, selectApiKey } from './services/geminiService';
 import { getTranslation } from './translations';
 import { Loader } from './components/Loader';
 import { 
@@ -11,26 +11,33 @@ import {
   Layout, 
   Smartphone, 
   Monitor, 
-  Crop,
-  Layers,
-  Zap,
-  Globe,
-  Printer,
-  Instagram,
-  Clapperboard,
-  BookOpen,
-  XCircle,
-  MoveVertical,
-  MoveHorizontal,
-  PenTool,
-  Trash2,
-  Grid2X2,
-  Box,
-  Gamepad2,
-  Book,
-  CheckCircle2,
-  Maximize2,
-  Key
+  Crop, 
+  Layers, 
+  Zap, 
+  Globe, 
+  Printer, 
+  Instagram, 
+  Clapperboard, 
+  BookOpen, 
+  XCircle, 
+  MoveVertical, 
+  MoveHorizontal, 
+  PenTool, 
+  Trash2, 
+  Grid2X2, 
+  Box, 
+  Gamepad2, 
+  Book, 
+  CheckCircle2, 
+  Maximize2, 
+  Minimize2, 
+  Shield, 
+  Lock, 
+  Move, 
+  X,
+  User,
+  Copy,
+  Cpu
 } from './components/Icons';
 
 // --- Data Structures ---
@@ -84,7 +91,7 @@ const lineStylePrompts = {
 };
 
 const modePrompts = {
-  '4koma_layout': 'Create a 4-panel comic strip (4-koma manga) layout. The image must be divided into 4 clear panels.',
+  '4koma_layout': 'Create a 4-panel comic strip (4-koma manga) layout. Arrange the panels in a 2x2 grid (two panels on the top row, two panels on the bottom row). Ensure the panels are clearly divided.',
   'picture_book': 'Create an illustration in the style of a children\'s picture book. Use warm, soft colors and a whimsical, narrative-driven artistic style suitable for a storybook.',
 };
 
@@ -99,6 +106,9 @@ const App: React.FC = () => {
   // State
   const [lang, setLang] = useState<Language>('ja');
   
+  // Model State
+  const [selectedModel, setSelectedModel] = useState<GeminiModel>('gemini-3-pro-image-preview');
+
   // Replaced single originalImage with array of SourceImage
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
   
@@ -110,6 +120,14 @@ const App: React.FC = () => {
   const [styleId, setStyleId] = useState<string | null>(null);
   const [lineStyleId, setLineStyleId] = useState<string | null>(null); // Default null
   const [modeId, setModeId] = useState<string | null>(null);
+  const [preservationMode, setPreservationMode] = useState<PreservationMode>('none');
+  
+  // Preservation Popup State
+  const [showPreservationPopup, setShowPreservationPopup] = useState(false);
+  const [preservationPopupPos, setPreservationPopupPos] = useState({ x: 0, y: 0 });
+  const preservationBtnRef = useRef<HTMLButtonElement>(null);
+  const isDraggingPreservationRef = useRef(false);
+  const dragOffsetPreservationRef = useRef({ x: 0, y: 0 });
 
   // Paper/Size State
   const [selectedPaperId, setSelectedPaperId] = useState<string>('a3a4'); // Default to merged A3/A4
@@ -120,12 +138,13 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
-
-  // API Key Modal State
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [hasStoredKey, setHasStoredKey] = useState(false);
   const [isAIStudioAvailable, setIsAIStudioAvailable] = useState(false);
+
+  // Prompt Popup State
+  const [showPromptPopup, setShowPromptPopup] = useState(false);
+  const [popupPos, setPopupPos] = useState({ x: 100, y: 100 });
+  const isDraggingPopupRef = useRef(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = getTranslation(lang);
@@ -133,17 +152,46 @@ const App: React.FC = () => {
   // --- Logic Helpers ---
 
   useEffect(() => {
-    // Check for API key on mount
-    const key = getStoredApiKey();
-    if (key) {
-      setHasStoredKey(true);
-      setApiKeyInput(key);
-    }
     // Check if AI Studio platform integration is available
     if ((window as any).aistudio) {
       setIsAIStudioAvailable(true);
     }
   }, []);
+
+  // Popup Drag Logic (Handles both Prompt and Preservation popups)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // Prompt Popup Drag
+      if (isDraggingPopupRef.current) {
+        setPopupPos({
+          x: e.clientX - dragOffsetRef.current.x,
+          y: e.clientY - dragOffsetRef.current.y
+        });
+      }
+      // Preservation Popup Drag
+      if (isDraggingPreservationRef.current) {
+        setPreservationPopupPos({
+          x: e.clientX - dragOffsetPreservationRef.current.x,
+          y: e.clientY - dragOffsetPreservationRef.current.y
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      isDraggingPopupRef.current = false;
+      isDraggingPreservationRef.current = false;
+    };
+
+    if (showPromptPopup || showPreservationPopup) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [showPromptPopup, showPreservationPopup]);
 
   // Determine Aspect Ratio based on Paper Size + Orientation
   const getCurrentAspectRatio = (): AspectRatio => {
@@ -189,6 +237,17 @@ const App: React.FC = () => {
       final += `\n(${modePrompts[modeId as keyof typeof modePrompts]})`;
     }
 
+    // Append Preservation Mode Instructions
+    if (preservationMode === 'strict') {
+      final += `\n(IMPORTANT: Strictly preserve the original image composition, structure, and details exactly. Do NOT change the content or lines. Only improve image quality or resolution.)`;
+    } else if (preservationMode === 'line_art') {
+      final += `\n(IMPORTANT: Strictly preserve the original line art and outlines. Do NOT change the drawing lines. Only colorize, texture, or shade the image.)`;
+    } else if (preservationMode === 'character_background') {
+      final += `\n(IMPORTANT: Strictly preserve the main subjects (people, characters, vehicles, weapons, armor, animals) in the image exactly. Do NOT change their appearance, pose, or details. Only modify the background environment.)`;
+    } else if (preservationMode === 'same_character') {
+      final += `\n(IMPORTANT: Generate a new image featuring the EXACT SAME character/person from the original image. Maintain facial features, hair, and key identity traits strictly. However, you MUST change the pose, action, and background environment based on the prompt instructions.)`;
+    }
+
     // Append Fit To Paper Prompt with Orientation Reference
     if (fitToPaperMode) {
       const paperDef = paperSizes.find(p => p.id === selectedPaperId);
@@ -206,32 +265,43 @@ const App: React.FC = () => {
 
   const toggleLanguage = () => setLang(prev => prev === 'en' ? 'ja' : 'en');
 
-  const handleOpenKeyModal = () => {
-    const currentKey = getStoredApiKey() || '';
-    setApiKeyInput(currentKey);
-    setIsKeyModalOpen(true);
+  const handlePopupHeaderMouseDown = (e: React.MouseEvent) => {
+    isDraggingPopupRef.current = true;
+    dragOffsetRef.current = {
+      x: e.clientX - popupPos.x,
+      y: e.clientY - popupPos.y
+    };
   };
 
-  const handleSaveApiKey = () => {
-    if (apiKeyInput.trim()) {
-      saveApiKey(apiKeyInput.trim());
-      setHasStoredKey(true);
-      setError(null);
-      // Optional: Close modal on save, or just show success state
-      // setIsKeyModalOpen(false); 
+  const handleTogglePreservationPopup = () => {
+    if (showPreservationPopup) {
+      setShowPreservationPopup(false);
+      return;
     }
+    
+    // Calculate initial position: Right of the button
+    if (preservationBtnRef.current) {
+      const rect = preservationBtnRef.current.getBoundingClientRect();
+      // Position to the right (rect.right + 10), align top (rect.top)
+      setPreservationPopupPos({ x: rect.right + 12, y: rect.top });
+    } else {
+      setPreservationPopupPos({ x: 300, y: 200 }); // Fallback
+    }
+    
+    setShowPreservationPopup(true);
   };
 
-  const handleRemoveApiKey = () => {
-    removeApiKey();
-    setApiKeyInput('');
-    setHasStoredKey(false);
+  const handlePreservationPopupHeaderMouseDown = (e: React.MouseEvent) => {
+    isDraggingPreservationRef.current = true;
+    dragOffsetPreservationRef.current = {
+      x: e.clientX - preservationPopupPos.x,
+      y: e.clientY - preservationPopupPos.y
+    };
   };
 
   const handleSelectProject = async () => {
     try {
       await selectApiKey();
-      setIsKeyModalOpen(false); // Close modal after selection if successful
     } catch (e) {
       console.error("Project selection failed", e);
     }
@@ -289,13 +359,6 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // If no local key and AI Studio is not available, force open settings
-    if (!hasStoredKey && !isAIStudioAvailable) {
-      setIsKeyModalOpen(true);
-      setError(t.keyMissing);
-      return;
-    }
-
     const activeImages = sourceImages.filter(img => img.enabled).map(img => img.data);
     
     // Only block if no prompt AND no active images
@@ -313,7 +376,8 @@ const App: React.FC = () => {
         activeImages, 
         fullPrompt, 
         finalAspectRatio, 
-        resolution
+        resolution,
+        selectedModel
       );
       setGeneratedImage(result);
     } catch (err: any) {
@@ -359,6 +423,7 @@ const App: React.FC = () => {
   const activeImagesCount = sourceImages.filter(i => i.enabled).length;
   const isGenerateDisabled = (activeImagesCount === 0 && !prompt) || isGenerating;
   const isRectangular = paperSizes.find(p => p.id === selectedPaperId)?.isRectangular;
+  const isProModel = selectedModel === 'gemini-3-pro-image-preview';
 
   // Resolution Options
   const resolutionOptions = [
@@ -366,6 +431,16 @@ const App: React.FC = () => {
     { value: ImageResolution.RES_2K, label: t.res2k, icon: <Layers className="w-4 h-4" /> },
     { value: ImageResolution.RES_4K, label: t.res4k, icon: <Wand2 className="w-4 h-4" /> },
   ];
+
+  const getPreservationLabel = () => {
+    switch(preservationMode) {
+      case 'strict': return t.preservationStrict;
+      case 'line_art': return t.preservationLine;
+      case 'character_background': return t.preservationCharacter;
+      case 'same_character': return t.preservationSameChar;
+      default: return t.preservationNone;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-500/30 relative">
@@ -384,18 +459,14 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-             {/* API Key Settings Button */}
-             <button 
-               onClick={handleOpenKeyModal}
-               className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors border ${
-                 hasStoredKey 
-                   ? 'bg-slate-800 hover:bg-slate-700 text-blue-300 border-blue-900/30' 
-                   : 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/30'
-               }`}
+             {/* Project Selector Button (Replaces manual API Key button) */}
+             <button
+               onClick={handleSelectProject}
+               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-xs font-medium transition-colors shadow-lg shadow-blue-500/20"
                title={t.selectProject}
              >
-               <Key className="w-3 h-3" />
-               <span className="hidden sm:inline">{t.selectProject}</span>
+                <img src="https://www.gstatic.com/devrel-devsite/prod/v2210075a8929/googlegemini/images/favicon.png" className="w-3.5 h-3.5" alt="Google" />
+                <span className="hidden sm:inline">{t.selectProjectBtn}</span>
              </button>
 
              <button 
@@ -405,6 +476,21 @@ const App: React.FC = () => {
                <Globe className="w-3 h-3" />
                {lang === 'en' ? 'English' : '日本語'}
              </button>
+
+             {/* Model Selector */}
+             <div className="relative">
+               <select
+                 value={selectedModel}
+                 onChange={(e) => setSelectedModel(e.target.value as GeminiModel)}
+                 className="appearance-none pl-8 pr-8 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors border border-slate-700 outline-none cursor-pointer font-medium"
+               >
+                 <option value="gemini-3-pro-image-preview">Gemini 3 Pro</option>
+                 <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+                 <option value="gemini-2.5-flash-image">Gemini 2.5 Flash</option>
+               </select>
+               <Cpu className="w-3 h-3 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none border-l border-slate-600 border-b border-slate-600 w-1.5 h-1.5 -rotate-45 mb-0.5" />
+             </div>
           </div>
         </div>
       </header>
@@ -423,7 +509,43 @@ const App: React.FC = () => {
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                 <ImageIcon className="w-4 h-4" /> {t.sourceImage}
               </h2>
-              <span className="text-[10px] text-slate-500">{sourceImages.length}/10</span>
+              
+              <div className="flex items-center gap-3">
+                {/* Preservation Mode Button (Trigger for Popup) */}
+                <div className="relative">
+                  <button
+                    ref={preservationBtnRef}
+                    onClick={handleTogglePreservationPopup}
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all border ${
+                      preservationMode === 'none' 
+                      ? 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700' 
+                      : preservationMode === 'strict'
+                      ? 'bg-green-500/20 text-green-400 border-green-500/50'
+                      : preservationMode === 'line_art'
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                      : preservationMode === 'character_background'
+                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                      : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50'
+                    }`}
+                    title={getPreservationLabel()}
+                  >
+                    {preservationMode === 'none' && (
+                      <div className="relative">
+                          <Shield className="w-4 h-4" />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-full h-0.5 bg-slate-500 rotate-45 transform scale-110"></div>
+                          </div>
+                      </div>
+                    )}
+                    {preservationMode === 'strict' && <Lock className="w-4 h-4" />}
+                    {preservationMode === 'line_art' && <PenTool className="w-4 h-4" />}
+                    {preservationMode === 'character_background' && <User className="w-4 h-4" />}
+                    {preservationMode === 'same_character' && <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <span className="text-[10px] text-slate-500">{sourceImages.length}/10</span>
+              </div>
             </div>
             
             <div className="space-y-3">
@@ -489,10 +611,19 @@ const App: React.FC = () => {
           </section>
 
           {/* 2. Prompt Section */}
-          <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Wand2 className="w-4 h-4" /> {t.editPrompt}
-            </h2>
+          <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl relative group">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Wand2 className="w-4 h-4" /> {t.editPrompt}
+              </h2>
+              <button 
+                onClick={() => setShowPromptPopup(true)}
+                className="p-1 text-slate-500 hover:text-blue-400 transition-colors"
+                title={t.expandPrompt}
+              >
+                 <Maximize2 className="w-4 h-4" />
+              </button>
+            </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -711,10 +842,21 @@ const App: React.FC = () => {
             Contains: Output Size, Orientation, Quality, Generate Button
         */}
         <div className="lg:col-span-3 flex flex-col gap-6">
-          <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl space-y-5 h-full">
+          <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl space-y-5 h-full relative">
             
+            {/* Overlay for Non-Pro Models */}
+            {!isProModel && (
+              <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px] z-20 rounded-2xl flex flex-col items-center justify-center text-center p-6 border border-slate-800/50">
+                <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-700 shadow-2xl max-w-[250px]">
+                  <Lock className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                  <h3 className="text-sm font-bold text-slate-300 mb-1">Advanced Settings Locked</h3>
+                  <p className="text-[10px] text-slate-500">Output size, orientation, and resolution controls are only available in <span className="text-blue-400 font-bold">Gemini 3 Pro</span>.</p>
+                </div>
+              </div>
+            )}
+
             {/* Paper Selection */}
-            <div>
+            <div className={!isProModel ? "opacity-30 pointer-events-none filter grayscale" : ""}>
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Layout className="w-4 h-4" /> {t.outputSize}
               </h2>
@@ -737,7 +879,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Fit to Paper Mode Toggle */}
-             <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
+             <div className={`bg-slate-950 rounded-xl p-3 border border-slate-800 ${!isProModel ? "opacity-30 pointer-events-none filter grayscale" : ""}`}>
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                     <Maximize2 className={`w-4 h-4 ${fitToPaperMode ? 'text-blue-400' : 'text-slate-500'}`} />
@@ -764,7 +906,7 @@ const App: React.FC = () => {
 
             {/* Orientation Toggle */}
             {isRectangular && (
-              <div className="animate-in fade-in slide-in-from-top-1">
+              <div className={`animate-in fade-in slide-in-from-top-1 ${!isProModel ? "opacity-30 pointer-events-none filter grayscale" : ""}`}>
                  <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                    <Crop className="w-4 h-4" /> {t.orientationTitle}
                  </h2>
@@ -794,7 +936,7 @@ const App: React.FC = () => {
             )}
 
             {/* Resolution Selector */}
-            <div>
+            <div className={!isProModel ? "opacity-30 pointer-events-none filter grayscale" : ""}>
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Monitor className="w-4 h-4" /> {t.qualityLevel}
               </h2>
@@ -836,8 +978,8 @@ const App: React.FC = () => {
 
             <div className="flex-grow"></div>
 
-            {/* Generate Button */}
-            <div className="mt-auto">
+            {/* Generate Button - Z-index elevated to stay above overlay */}
+            <div className="mt-auto relative z-30">
               <button
                 onClick={handleGenerate}
                 disabled={isGenerateDisabled}
@@ -854,7 +996,7 @@ const App: React.FC = () => {
                 )}
               </button>
               {error && (
-                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] text-center">
+                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] text-center whitespace-pre-wrap">
                   {error}
                 </div>
               )}
@@ -914,89 +1056,170 @@ const App: React.FC = () => {
             
             {/* Model Info Footer */}
             <div className="bg-slate-950/50 p-2 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-800">
-               <p>{t.modelInfo}</p>
-               <p>{t.modelSub}</p>
+               <p>{t.modelInfo} <span className="text-blue-400 font-bold">{selectedModel === 'gemini-3-pro-image-preview' ? 'Pro' : 'Flash'}</span></p>
+               <p>{selectedModel}</p>
             </div>
           </div>
         </div>
       </main>
 
-      {/* API Key Modal */}
-      {isKeyModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <button 
-              onClick={() => setIsKeyModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors"
+      {/* Preservation Mode Popup Window (Draggable) */}
+      {showPreservationPopup && (
+         <div 
+           style={{ 
+             top: preservationPopupPos.y, 
+             left: preservationPopupPos.x,
+             zIndex: 9999
+           }}
+           className="fixed w-64 bg-slate-900 border border-slate-600 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+         >
+            {/* Header */}
+            <div 
+              className="bg-slate-800 p-2 cursor-move flex items-center justify-between"
+              onMouseDown={handlePreservationPopupHeaderMouseDown}
             >
-              <XCircle className="w-6 h-6" />
-            </button>
-            
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-blue-600/20 rounded-full text-blue-400">
-                <Key className="w-6 h-6" />
+              <div className="flex items-center gap-2 px-2 text-slate-300">
+                <Shield className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase">{t.preservationTip}</span>
               </div>
-              <h2 className="text-xl font-bold text-white">{t.apiKeyTitle}</h2>
+              <button 
+                onClick={() => setShowPreservationPopup(false)}
+                className="p-1 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-            
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-              {t.apiKeyDesc}
-            </p>
-            
-            <div className="space-y-4">
-              <div>
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder={t.apiKeyPlaceholder}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono"
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleSaveApiKey}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20"
-                >
-                  {t.saveKey}
-                </button>
-                {hasStoredKey && (
-                  <button
-                    onClick={handleRemoveApiKey}
-                    className="px-4 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium transition-colors border border-red-500/20"
-                  >
-                    {t.removeKey}
-                  </button>
-                )}
-              </div>
-              
-              {hasStoredKey && (
-                <p className="text-xs text-green-400 flex items-center justify-center gap-1.5 mt-2">
-                  <CheckCircle2 className="w-3 h-3" /> {t.keySaved}
-                </p>
-              )}
 
-              {/* AI Studio Project Fallback */}
-              {isAIStudioAvailable && (
-                <div className="pt-4 mt-4 border-t border-slate-800">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-px bg-slate-800 flex-1"></div>
-                    <span className="text-xs text-slate-500 uppercase">{t.or}</span>
-                    <div className="h-px bg-slate-800 flex-1"></div>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-3 text-center">{t.useCloudProject}</p>
-                   <button
-                    onClick={handleSelectProject}
-                    className="w-full py-3 rounded-xl font-medium transition-colors border border-slate-700 hover:bg-slate-800 text-slate-300 flex items-center justify-center gap-2"
-                  >
-                    <img src="https://www.gstatic.com/devrel-devsite/prod/v2210075a8929/googlegemini/images/favicon.png" className="w-4 h-4" alt="Google" />
-                    {t.selectProjectBtn}
-                  </button>
-                </div>
-              )}
+            {/* Content */}
+            <div className="p-1 flex flex-col gap-1">
+               {/* Option 1: None */}
+               <button
+                 onClick={() => { setPreservationMode('none'); }}
+                 className={`w-full text-left px-3 py-2 flex items-center gap-3 rounded-lg transition-colors ${
+                   preservationMode === 'none' ? 'bg-slate-800' : 'hover:bg-slate-800/50'
+                 }`}
+               >
+                 <div className="p-2 bg-slate-800 rounded-lg text-slate-500 border border-slate-700">
+                   <Shield className="w-4 h-4 opacity-50" />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-300">Standard</p>
+                    <p className="text-[9px] text-slate-500">{t.preservationNone.split('：')[1] || "No restrictions"}</p>
+                 </div>
+                 {preservationMode === 'none' && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
+               </button>
+
+               {/* Option 2: Strict */}
+               <button
+                 onClick={() => { setPreservationMode('strict'); }}
+                 className={`w-full text-left px-3 py-2 flex items-center gap-3 rounded-lg transition-colors ${
+                   preservationMode === 'strict' ? 'bg-green-900/20' : 'hover:bg-slate-800/50'
+                 }`}
+               >
+                 <div className="p-2 bg-green-500/20 rounded-lg text-green-400 border border-green-500/30">
+                   <Lock className="w-4 h-4" />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs font-bold text-green-300">Strict Preservation</p>
+                    <p className="text-[9px] text-slate-500">{t.preservationStrict.split('：')[1] || "Quality Up Only"}</p>
+                 </div>
+                 {preservationMode === 'strict' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+               </button>
+
+               {/* Option 3: Line Art */}
+               <button
+                 onClick={() => { setPreservationMode('line_art'); }}
+                 className={`w-full text-left px-3 py-2 flex items-center gap-3 rounded-lg transition-colors ${
+                   preservationMode === 'line_art' ? 'bg-blue-900/20' : 'hover:bg-slate-800/50'
+                 }`}
+               >
+                 <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 border border-blue-500/30">
+                   <PenTool className="w-4 h-4" />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs font-bold text-blue-300">Line Art</p>
+                    <p className="text-[9px] text-slate-500">{t.preservationLine.split('：')[1] || "Color/Texture Only"}</p>
+                 </div>
+                 {preservationMode === 'line_art' && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
+               </button>
+
+               {/* Option 4: Character Background */}
+               <button
+                 onClick={() => { setPreservationMode('character_background'); }}
+                 className={`w-full text-left px-3 py-2 flex items-center gap-3 rounded-lg transition-colors ${
+                   preservationMode === 'character_background' ? 'bg-purple-900/20' : 'hover:bg-slate-800/50'
+                 }`}
+               >
+                 <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400 border border-purple-500/30">
+                   <User className="w-4 h-4" />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs font-bold text-purple-300">Character Preservation</p>
+                    <p className="text-[9px] text-slate-500">{t.preservationCharacter.split('：')[1] || "Change Background"}</p>
+                 </div>
+                 {preservationMode === 'character_background' && <CheckCircle2 className="w-4 h-4 text-purple-500" />}
+               </button>
+
+               {/* Option 5: Same Character (New) */}
+               <button
+                 onClick={() => { setPreservationMode('same_character'); }}
+                 className={`w-full text-left px-3 py-2 flex items-center gap-3 rounded-lg transition-colors ${
+                   preservationMode === 'same_character' ? 'bg-indigo-900/20' : 'hover:bg-slate-800/50'
+                 }`}
+               >
+                 <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 border border-indigo-500/30">
+                   <Copy className="w-4 h-4" />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs font-bold text-indigo-300">Same Character</p>
+                    <p className="text-[9px] text-slate-500">{t.preservationSameChar.split('：')[1] || "Change Pose/Loc"}</p>
+                 </div>
+                 {preservationMode === 'same_character' && <CheckCircle2 className="w-4 h-4 text-indigo-500" />}
+               </button>
             </div>
-          </div>
+         </div>
+      )}
+
+      {/* Prompt Editor Popup (Draggable & Resizable) */}
+      {showPromptPopup && (
+        <div 
+          style={{ 
+            top: popupPos.y, 
+            left: popupPos.x,
+            minWidth: '300px',
+            minHeight: '200px',
+            resize: 'both',
+            overflow: 'auto',
+            zIndex: 9999
+          }}
+          className="fixed bg-slate-900 border border-slate-600 rounded-xl shadow-2xl flex flex-col w-[500px] h-[300px]"
+        >
+           {/* Drag Handle / Header */}
+           <div 
+             className="bg-slate-800 p-2 cursor-move flex items-center justify-between rounded-t-xl"
+             onMouseDown={handlePopupHeaderMouseDown}
+           >
+             <div className="flex items-center gap-2 px-2 text-slate-300">
+               <Move className="w-4 h-4" />
+               <span className="text-xs font-bold uppercase">{t.editPrompt}</span>
+             </div>
+             <button 
+               onClick={() => setShowPromptPopup(false)}
+               className="p-1 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white"
+             >
+               <X className="w-4 h-4" />
+             </button>
+           </div>
+           
+           {/* Editor Area */}
+           <div className="flex-1 p-0">
+             <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={t.promptPlaceholder}
+                className="w-full h-full bg-slate-950 p-4 text-slate-200 placeholder-slate-600 focus:outline-none resize-none font-mono text-sm leading-relaxed"
+              />
+           </div>
         </div>
       )}
     </div>

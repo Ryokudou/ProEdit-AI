@@ -18,6 +18,10 @@ export type Orientation = 'portrait' | 'landscape';
 
 export type StyleGroup = 'anime' | 'manga' | '3dcg' | 'pixel' | null;
 
+export type PreservationMode = 'none' | 'strict' | 'line_art' | 'character_background' | 'same_character';
+
+export type GeminiModel = 'gemini-3-pro-image-preview' | 'gemini-3-flash-preview' | 'gemini-2.5-flash-image';
+
 export interface GenerationConfig {
   prompt: string;
   aspectRatio: AspectRatio;

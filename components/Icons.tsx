@@ -5,6 +5,7 @@ import {
   Wand2, 
   Download, 
   Maximize2, 
+  Minimize2,
   Layout, 
   Smartphone, 
   Monitor, 
@@ -26,7 +27,17 @@ import {
   Box,
   Gamepad2,
   Book,
-  Key
+  Key,
+  Eye,
+  EyeOff,
+  Shield,
+  ShieldAlert,
+  Lock,
+  Move,
+  X,
+  User,
+  Copy,
+  Cpu
 } from 'lucide-react';
 
 export { 
@@ -35,6 +46,7 @@ export {
   Wand2, 
   Download, 
   Maximize2, 
+  Minimize2, 
   Layout, 
   Smartphone, 
   Monitor, 
@@ -56,5 +68,15 @@ export {
   Box,
   Gamepad2,
   Book,
-  Key
+  Key,
+  Eye,
+  EyeOff,
+  Shield,
+  ShieldAlert,
+  Lock,
+  Move,
+  X,
+  User,
+  Copy,
+  Cpu
 };

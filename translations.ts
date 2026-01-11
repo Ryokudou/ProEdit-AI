@@ -11,20 +11,20 @@ export const translations = {
     uploadDesc: "JPG, PNG up to 10MB",
     editPrompt: "Prompt",
     promptPlaceholder: "Describe the image you want to generate or how to modify the uploaded image...",
-    selectProject: "API Key Settings",
+    expandPrompt: "Expand Editor",
+    closePrompt: "Close Editor",
+    selectProject: "Select Google Cloud Project",
 
-    // API Key Modal
-    apiKeyTitle: "Gemini API Key Settings",
-    apiKeyDesc: "Enter your Gemini API Key. It will be saved to your browser's local storage.",
-    apiKeyPlaceholder: "Enter your API Key here...",
-    saveKey: "Save API Key",
-    removeKey: "Remove Key",
-    close: "Close",
-    keySaved: "API Key Saved",
-    or: "OR",
-    useCloudProject: "Use Google Cloud Project (AI Studio)",
-    selectProjectBtn: "Select Cloud Project",
-    keyMissing: "API Key is required. Please check settings.",
+    // Preservation Modes
+    preservationNone: "No Preservation (Standard)",
+    preservationStrict: "Strict Preservation (Quality Up Only)",
+    preservationLine: "Line Art Preservation (Color/Texture Only)",
+    preservationCharacter: "Character Preservation (Background Change)",
+    preservationSameChar: "Same Character (Pose/Location Change)",
+    preservationTip: "Toggle preservation mode",
+
+    selectProjectBtn: "Select Google Cloud Project",
+    errorGeneric: "Failed to generate image. Please try again.",
 
     // Style Section
     styleSectionTitle: "Style & Touch (Hidden Prompts)",
@@ -82,7 +82,6 @@ export const translations = {
     previewEmpty: "Enter a prompt or upload an image to start",
     modelInfo: "Model: Gemini 3 Pro (Image Preview)",
     modelSub: "Supports up to 4K • Various Aspect Ratios",
-    errorGeneric: "Failed to generate image. Please try again.",
     
     // Resolutions
     res1k: "Fast (1K)",
@@ -101,7 +100,7 @@ export const translations = {
   },
   ja: {
     title: "ProEdit AI",
-    subtitle: "Gemini 3 Pro 搭載",
+    subtitle: "Gemini 3 Pro 使用",
     sourceImage: "元画像 (最大10枚)",
     changeImage: "画像を追加",
     removeImage: "削除",
@@ -109,20 +108,20 @@ export const translations = {
     uploadDesc: "JPG, PNG (最大10MB)",
     editPrompt: "プロンプト",
     promptPlaceholder: "生成したい画像の説明、または元画像の変更内容を入力してください...",
-    selectProject: "APIキー設定",
+    expandPrompt: "エディタを拡大",
+    closePrompt: "エディタを閉じる",
+    selectProject: "Google Cloudプロジェクトを選択",
 
-    // API Key Modal
-    apiKeyTitle: "Gemini APIキー設定",
-    apiKeyDesc: "Gemini APIキーを入力してください。キーはブラウザのローカルストレージに保存されます。",
-    apiKeyPlaceholder: "APIキーを入力してください...",
-    saveKey: "APIキーを保存",
-    removeKey: "キーを削除",
-    close: "閉じる",
-    keySaved: "APIキーを保存しました",
-    or: "または",
-    useCloudProject: "Google Cloud Project (AI Studio) を使用",
-    selectProjectBtn: "プロジェクトを選択",
-    keyMissing: "APIキーが必要です。設定を確認してください。",
+    // Preservation Modes
+    preservationNone: "画像維持：なし (通常編集)",
+    preservationStrict: "画像維持：完全維持 (高画質化・ノイズ除去)",
+    preservationLine: "画像維持：線画維持 (色塗り・テクスチャ追加)",
+    preservationCharacter: "画像維持：人物維持 (背景変更)",
+    preservationSameChar: "画像維持：同一人物生成 (ポーズ・場所変更)",
+    preservationTip: "画像維持モード切替",
+
+    selectProjectBtn: "Google Cloudプロジェクトを選択",
+    errorGeneric: "画像の生成に失敗しました。もう一度お試しください。",
 
     // Style Section
     styleSectionTitle: "スタイル・タッチ設定 (固定プロンプト)",
@@ -180,7 +179,6 @@ export const translations = {
     previewEmpty: "プロンプトを入力するか、画像をアップロードして開始してください",
     modelInfo: "モデル: Gemini 3 Pro (Image Preview)",
     modelSub: "最大4K対応 • 多様なアスペクト比",
-    errorGeneric: "画像の生成に失敗しました。もう一度お試しください。",
 
     // Resolutions
     res1k: "軽量 (1K)",
